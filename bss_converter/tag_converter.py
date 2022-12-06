@@ -223,6 +223,7 @@ class TagConverter:
         bss_attribute = self._convert_bss_attribute('extends')
         extends_tags = self.tree.select(f'[{bss_attribute}]')
         if not extends_tags:
+            self.has_teg_extends = False
             return
         if len(extends_tags) > 1:
             raise Exception("extends attribute can be used only once")
