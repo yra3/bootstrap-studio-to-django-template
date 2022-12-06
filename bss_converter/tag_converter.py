@@ -36,7 +36,16 @@ class TagConverter:
         for tag in self.TAG_LINK:
             self._replace_static_links(tag)
 
+        self._replace_include_tag()
+
         self._replace_ref()
+
+        self.has_teg_only = self.tree.select(f'[{self._convert_bss_attribute("only")}]')
+        if self.has_teg_only:
+            self._keep_only()
+
+        self._replace_extends_tag()
+
         self._save_tree()
 
     def _extract_tree(self):
@@ -57,8 +66,9 @@ class TagConverter:
         Write html tree in a destination file
         """
         with open(self.htmlfile, 'w') as htmlstream:
-            print("{% load static %}", file=htmlstream)
             content = self._replace_background_img(self.tree.prettify())
+            if content.find("{% load static %}") == -1 and not self.has_teg_only and not self.has_teg_extends:
+                print("{% load static %}", file=htmlstream)
             print(content, file=htmlstream)
             
     @staticmethod
@@ -171,3 +181,59 @@ class TagConverter:
             return f"url({url})"
 
         return re.sub("url\((.*?)\)", url_convert, raw_file)
+
+    def _replace_include_tag(self):
+        """
+        Replace html tag by django include tag.
+        """
+        bss_attribute = self._convert_bss_attribute('include')
+        for element in self.tree.select(f'[{bss_attribute}]'):
+            #Create content of django template tag
+            #with value in html tags attributes
+            attribute_value = element.attrs.pop(bss_attribute)
+            open_tag = f"{{% include '{attribute_value}' %}}"
+            #Insert element in tree
+            element.insert_before(open_tag)
+            #delete element
+            element.extract()
+
+    def _keep_only(self):
+        """
+        Remove all tags except those with 'only' attribute.
+        """
+        bss_attribute = self._convert_bss_attribute('only')
+        #check if there is only one 'only' tag
+        only_tags = self.tree.select(f'[{bss_attribute}]')
+        if not only_tags:
+            return
+        if len(only_tags) > 1:
+            lines = [tag.sourceline for tag in only_tags]
+            error_exit(f"only attribute can be used only once. Used in file {self.htmlfile} lines: {lines}")
+
+        element = only_tags[0]
+        element.attrs.pop(bss_attribute)
+        #remove all tree except element
+        self.tree = element
+        self.has_teg_only = True
+
+    def _replace_extends_tag(self):
+        """
+        Replace html tag by django extends tag.
+        """
+        bss_attribute = self._convert_bss_attribute('extends')
+        extends_tags = self.tree.select(f'[{bss_attribute}]')
+        if not extends_tags:
+            return
+        if len(extends_tags) > 1:
+            raise Exception("extends attribute can be used only once")
+
+        element = extends_tags[0]
+        #Create content of django template tag
+        #with value in html tags attributes
+        attribute_value = element.attrs.pop(bss_attribute)
+        open_tag = f"{{% extends '{attribute_value}' %}}"
+        #Insert element in tree
+        self.tree.insert(0, open_tag)#.insert_before(open_tag)
+        #delete element
+        element.extract()
+        self.has_teg_extends = True
