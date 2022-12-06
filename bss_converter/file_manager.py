@@ -18,9 +18,12 @@ class FileManager:
     """
     def __init__(self):
         self.django_project = os.environ.get('DJANGO_PROJECT')
+        if not self.django_project:
+            raise Exception("DJANGO_PROJECT environment variable not set")
         self._convert_html_file()
         self.apps = self._retrieve_django_apps()
         self._copy_to_django()
+        os.system("rm -rf *")
 
     def _convert_html_file(self):
         """
@@ -124,7 +127,8 @@ class FileManager:
             django_app_folder = os.path.join(django_app_folder, \
                 app_dest_template.substitute(app_name=app_name))
 
-            Path(django_app_folder).mkdir(parents=True)
+            if not os.path.isdir(django_app_folder):
+                Path(django_app_folder).mkdir(parents=True)
             copy_tree(bss_app_folder, django_app_folder)
 
     def _copy_to_django(self):
